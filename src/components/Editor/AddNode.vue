@@ -1,7 +1,7 @@
 <template>
   <div class="add-node">
     <form class="row" autocomplete="off" @submit.prevent>
-      <div class="form-group">
+      <div class="form-group" v-if="!selectedNodes.length">
         <label for="permissions">Add permissions</label>
         <multiselect
           id="permissions"
@@ -16,14 +16,74 @@
         />
       </div>
 
+      <div v-else class="form-group bulk-edit">
+        <p>
+          <span>{{ selectedNodes.length }}</span>
+          selected node{{ selectedNodes.length === 1 ? '' : 's' }}
+          <button @click="deselectNodes" title="Deselect all nodes">
+            <font-awesome icon="times" />
+          </button>
+        </p>
+        <div class="buttons">
+          <button @click="copyNodes">
+            <font-awesome icon="clone" />
+            Copy
+          </button>
+          <button @click="moveNodes">
+            <font-awesome icon="sign-in-alt" />
+            Move
+          </button>
+          <button @click="deleteNodes">
+            <font-awesome icon="times" />
+            Delete
+          </button>
+        </div>
+      </div>
+
       <div>
         <div class="form-group">
-          <label>
+          <label v-if="!selectedNodes.length">
             Value
-            <button type="button" @click="value = !value" :class="{ code: true, 'true': value}">
+            <button
+              type="button"
+              @click="value = !value"
+              :class="{ code: true, 'true': value}"
+            >
               {{ value }}
             </button>
           </label>
+          <div v-else class="bulk-value">
+            <label>Value</label>
+            <div>
+              <button
+                type="button"
+                class="code true"
+                :class="{ selected: bulk.value === true }"
+                @click="bulk.value = true"
+                title="Change all values to TRUE"
+              >
+                true
+              </button>
+              <button
+                type="button"
+                class="code null"
+                :class="{ selected: bulk.value === null }"
+                @click="bulk.value = null"
+                title="Keep values unchanged"
+              >
+                -
+              </button>
+              <button
+                type="button"
+                class="code false"
+                :class="{ selected: bulk.value === false }"
+                @click="bulk.value = false"
+                title="Change all values to FALSE"
+              >
+                false
+              </button>
+            </div>
+          </div>
         </div>
 
         <div class="form-group">
@@ -39,12 +99,42 @@
       </div>
 
       <div class="form-group contexts">
-        <label>
+        <label v-if="!selectedNodes.length">
           Contexts
-          <button type="button" class="code" @click="context.ui = true">Add Contexts</button>
+          <button
+            type="button"
+            class="code"
+            title="Add contexts"
+            @click="context.ui = true"
+          >
+            <font-awesome icon="plus" />
+          </button>
         </label>
+        <div class="bulk-contexts" v-else>
+          <label for="bulk_contexts">Contexts</label>
+          <div>
+            <button
+              id="bulk_contexts_replace"
+              :class="{ selected: bulk.replaceContexts }"
+              @click="bulk.replaceContexts = !bulk.replaceContexts"
+              title="Replace contexts instead of adding?"
+            >
+              <font-awesome icon="check" />
+              Replace
+            </button>
+            <button
+              id="bulk_contexts"
+              type="button"
+              class="code"
+              title="Add contexts"
+              @click="context.ui = true"
+            >
+              <font-awesome icon="plus" />
+            </button>
+          </div>
+        </div>
         <div>
-          <code v-for="entry in flattenedContexts">
+          <code v-for="entry in flattenedContexts" v-bind:key="entry">
             <span>{{ entry.key }}:</span>
             {{ entry.value }}
           </code>
@@ -52,12 +142,28 @@
       </div>
 
       <button
+        v-if="!selectedNodes.length"
         type="submit"
         :disabled="permissions.length === 0"
-        @click="addNodesToSession"
         title="Add node"
+        @click="addNodesToSession"
       >
-        <font-awesome icon="plus" />
+        <span>
+          <font-awesome icon="plus" />
+          Add
+        </span>
+      </button>
+      <button
+        v-else
+        type="submit"
+        :disabled="!canUpdateNode"
+        title="Update nodes"
+        @click="updateNodes"
+      >
+        <span>
+          <font-awesome icon="edit" />
+          Update
+        </span>
       </button>
     </form>
 
@@ -68,9 +174,12 @@
           <font-awesome icon="times" />
         </div>
         <ul>
-          <li v-for="entry in flattenedContexts">
+          <li v-for="entry in flattenedContexts" v-bind:key="entry">
             <span v-html="entry.key"></span>
             <span v-html="entry.value"></span>
+            <button @click="removeContext(entry.key, entry.value)">
+              <font-awesome icon="times" fixed-width />
+            </button>
           </li>
           <li>
             <h5>
@@ -79,7 +188,7 @@
             </h5>
           </li>
           <li>
-            <span class="edit">
+            <div class="edit">
               <input
                 type="text"
                 v-model="context.key"
@@ -87,14 +196,17 @@
                 @focus="context.keyFocus = true"
                 @blur="blurField('keyFocus')"
               >
-              <ul class="context-list" v-if="context.keyFocus">
-                <li
-                  v-for="pContext in potentialContexts"
-                  @click="context.key = pContext.key"
-                >{{ pContext.key }}</li>
-              </ul>
-            </span>
-            <span class="edit">
+              <transition name="fade">
+                <ul class="context-list" v-if="context.keyFocus">
+                  <li
+                    v-for="pContext in potentialContexts"
+                    v-bind:key="pContext"
+                    @click="context.key = pContext.key"
+                  >{{ pContext.key }}</li>
+                </ul>
+              </transition>
+            </div>
+            <div class="edit">
               <input
                 type="text"
                 v-model="context.value"
@@ -103,13 +215,16 @@
                 @blur="blurField('valueFocus')"
                 @keydown.enter="addContext"
               >
-              <ul class="context-list" v-if="context.valueFocus">
-              <li
-                v-for="value in potentialContextValues"
-                @click="context.value = value"
-              >{{ value }}</li>
-            </ul>
-            </span>
+              <transition name="fade">
+                <ul class="context-list" v-if="context.valueFocus">
+                  <li
+                    v-for="value in potentialContextValues"
+                    v-bind:key="value"
+                    @click="context.value = value"
+                  >{{ value }}</li>
+                </ul>
+              </transition>
+            </div>
           </li>
         </ul>
         <button @click="addContext">
@@ -150,6 +265,10 @@ export default {
         keyFocus: false,
         valueFocus: false,
       },
+      bulk: {
+        value: null,
+        replaceContexts: false,
+      },
     };
   },
   computed: {
@@ -161,9 +280,11 @@ export default {
     },
     flattenedContexts() {
       const entries = [];
+      // eslint-disable-next-line no-restricted-syntax
       for (const [key, values] of Object.entries(this.context.contexts)) {
+        // eslint-disable-next-line no-restricted-syntax
         for (const value of values) {
-          entries.push({key: key, value: value});
+          entries.push({ key, value });
         }
       }
       return entries;
@@ -173,12 +294,16 @@ export default {
     },
     potentialContextValues() {
       if (!this.context.key) return null;
-      const context = this.potentialContexts.find(context => {
-        return context.key === this.context.key;
-      });
+      const context = this.potentialContexts.find(c => c.key === this.context.key);
       if (!context) return null;
       return context.values;
-    }
+    },
+    selectedNodes() {
+      return this.$store.getters.selectedNodeIds;
+    },
+    canUpdateNode() {
+      return (this.expiry || this.bulk.value !== null || Object.keys(this.context.contexts).length);
+    },
   },
   methods: {
     onTag(tag) {
@@ -221,6 +346,19 @@ export default {
       this.expiry = null;
       this.context.contexts = {};
     },
+    updateNodes() {
+      const payload = {
+        value: this.bulk.value,
+        replace: this.bulk.replaceContexts,
+        contexts: this.context.contexts,
+        expiry: this.expiry,
+      };
+
+      this.$store.dispatch('updateNodes', payload);
+      this.context.contexts = {};
+      this.bulk.value = null;
+      this.expiry = null;
+    },
     closeContextUi() {
       this.context.ui = false;
       this.context.key = '';
@@ -229,20 +367,48 @@ export default {
     addContext() {
       if (this.context.key === '' || this.context.value === '') return;
 
-      const values = this.context.contexts[this.context.key] || [];
-      if (!values.find(value => value === this.context.value)) {
-        values.push(this.context.value);
-        this.$set(this.context.contexts, this.context.key, values);
+      const key = this.context.key.trim();
+      const value = this.context.value.trim();
+
+      const values = this.context.contexts[key] || [];
+      if (!values.find(val => val === value)) {
+        values.push(value.trim());
+        this.$set(this.context.contexts, key, values);
       }
 
       this.context.key = '';
       this.context.value = '';
     },
+    removeContext(key, value) {
+      const { contexts } = this.context;
+
+      if (contexts[key].includes(value)) {
+        this.$set(contexts, key, contexts[key].filter(v => v !== value));
+      }
+    },
     blurField(type) {
       setTimeout(() => {
         this.context[type] = false;
-      }, 100);
-    }
+      }, 250);
+    },
+    deselectNodes() {
+      this.$store.commit('deselectAllSelectedNodes');
+    },
+    copyNodes() {
+      this.$store.commit('setModal', {
+        type: 'copyNodes',
+      });
+    },
+    moveNodes() {
+      this.$store.commit('setModal', {
+        type: 'moveNodes',
+      });
+    },
+    deleteNodes() {
+      this.$store.commit('setModal', {
+        type: 'deleteNodes',
+      });
+    },
   },
 };
 </script>
@@ -266,13 +432,24 @@ export default {
 
       > button {
         margin: .5rem;
-        background: $grey;
         color: $brand-color;
+        background: $grey;
         border: 0;
         border-radius: 2px;
-        width: 4em;
+        width: 5em;
         cursor: not-allowed;
         opacity: .5;
+        font-family: "Source Code Pro", monospace;
+
+        span {
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+
+          svg {
+            margin-bottom: .5rem;
+          }
+        }
 
         &:not([disabled]) {
           opacity: 1;
@@ -302,6 +479,76 @@ export default {
           border-top: 1px solid rgba(0,0,0,.2);
         }
 
+        &.bulk-edit {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          flex-direction: row;
+          padding: 0 2rem;
+
+          p {
+            margin: 0;
+            font-size: 1.5rem;
+            display: flex;
+            align-items: center;
+
+            span {
+              font-size: 3rem;
+              color: $brand-color;
+              margin-right: 1rem;
+              font-weight: 600;
+            }
+
+            button {
+              background: transparent;
+              margin-left: 1rem;
+              border: 0;
+              font-size: 1.5rem;
+              opacity: .5;
+              cursor: pointer;
+              height: 1em;
+
+              &:hover {
+                opacity: .75;
+              }
+            }
+          }
+
+          .buttons {
+            button {
+              background: rgba(0,0,0,.25);
+              font-family: "Source Code Pro", monospace;
+              font-size: 1rem;
+              border: 0;
+              color: rgba(0,0,0,.8);
+              margin-left: 1rem;
+              padding: .5rem 1rem;
+              cursor: pointer;
+
+              svg {
+                opacity: .5;
+                margin-right: .5rem;
+              }
+
+              &:hover {
+                background: rgba(0,0,0,.2);
+              }
+
+              &:nth-child(1) {
+                color: $brand-color;
+              }
+
+              &:nth-child(2) {
+                color: #FFF;
+              }
+
+              &:nth-child(3) {
+                color: $red;
+              }
+            }
+          }
+        }
+
         label {
           line-height: 1;
           margin-bottom: .5em;
@@ -313,6 +560,36 @@ export default {
 
           button.code {
             width: auto;
+          }
+        }
+
+        .bulk-value {
+          width: 100%;
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          margin-bottom: .5rem;
+
+          label {
+            margin: 0;
+            cursor: unset;
+          }
+
+          > div {
+            display: flex;
+          }
+
+          button {
+            opacity: 0.5;
+            margin-left: .2rem;
+          }
+
+          .null {
+            color: white;
+          }
+
+          .selected {
+            opacity: 1;
           }
         }
 
@@ -355,6 +632,23 @@ export default {
       }
 
       .contexts {
+        .bulk-contexts {
+          display: flex;
+          width: 100%;
+          align-items: center;
+          justify-content: space-between;
+          margin-bottom: .5rem;
+
+          label {
+            width: auto;
+            margin: 0;
+          }
+
+          > div {
+            display: flex;
+          }
+        }
+
         button.code {
           color: $brand-color;
         }
@@ -412,6 +706,8 @@ export default {
       border: 0;
       border-radius: 2px;
       font: inherit;
+      max-height: 30vh;
+      overflow-y: auto;
     }
 
     .multiselect__tag {
@@ -487,7 +783,7 @@ export default {
     }
 
     .context-ui {
-      bottom: 5rem;
+      bottom: 8rem;
       top: unset;
       right: 2rem;
 
@@ -497,6 +793,35 @@ export default {
         color: #FFF;
         font-family: "Source Code Pro", monospace;
       }
+
+      .context-list {
+        max-height: 10rem;
+      }
+    }
+  }
+
+  #bulk_contexts_replace {
+    background: rgba(0,0,0,.2);
+    color: $grey;
+    font-family: "Source Code Pro", monospace;
+    border: 0;
+    opacity: .5;
+    margin-right: .2rem;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+
+    svg {
+      margin-right: .5rem;
+    }
+
+    &:hover {
+      opacity: .75;
+    }
+
+    &.selected {
+      color: $brand-color;
+      opacity: 1;
     }
   }
 </style>

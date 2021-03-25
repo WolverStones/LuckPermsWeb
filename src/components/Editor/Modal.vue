@@ -15,16 +15,24 @@
 <script>
 import CreateGroup from './Modals/CreateGroup.vue';
 import DeleteGroup from './Modals/DeleteGroup.vue';
+import DeleteUser from './Modals/DeleteUser.vue';
 import CreateTrack from './Modals/CreateTrack.vue';
 import SavedChanges from './Modals/SavedChanges.vue';
+import CopyNodes from './Modals/CopyNodes.vue';
+import MoveNodes from './Modals/MoveNodes.vue';
+import DeleteNodes from './Modals/DeleteNodes.vue';
 
 export default {
   name: 'Modal',
   components: {
     CreateGroup,
     DeleteGroup,
+    DeleteUser,
     CreateTrack,
     SavedChanges,
+    CopyNodes,
+    MoveNodes,
+    DeleteNodes,
   },
   props: {
     modal: Object,
@@ -131,7 +139,7 @@ export default {
         background-color: $red;
       }
 
-      &:not(:first-child) {
+      &:not(:first-child):not(.save-button) {
         margin-left: 1em;
       }
     }

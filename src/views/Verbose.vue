@@ -70,16 +70,19 @@
         </div>
       </div>
       <div class="col-2">
-        <ul class="data">
-          <li v-for="(node, index) in filteredNodes" :key="`verboseNode_${node}_${index}`">
-            <Node :node="node" :node-count="filteredNodeCount" />
-          </li>
-        </ul>
+        <virtual-list
+          :data-sources="filteredNodes"
+          data-key="id"
+          :data-component="Node"
+          :keeps="50"
+          class="data"
+          :estimate-size="38"
+        />
       </div>
     </div>
     <div v-else class="tool-intro">
       <div>
-        <img alt="LuckPerms logo" src="../assets/logo.png">
+        <img alt="LuckPerms logo" src="../assets/logo.svg">
         <div class="text">
           <h1>LuckPerms</h1>
           <p>Verbose Viewer</p>
@@ -95,7 +98,9 @@
             </p>
           </template>
           <template v-if="verboseData.status === 0">
-            <a href="/verbose/demo"><button class="button demo-button">View Demo</button></a>
+            <router-link to="/verbose/demo">
+              <button class="button demo-button">View Demo</button>
+            </router-link>
             <p>To generate a verbose report, do the following in game or from the console:</p>
             <ul>
               <li><code>/lp verbose record [filter]</code></li>
@@ -111,16 +116,18 @@
 </template>
 
 <script>
+import VirtualList from 'vue-virtual-scroll-list';
 import Node from '../components/Verbose/Node.vue';
 import Avatar from '../components/Avatar.vue';
+import updateSession from '@/util/session';
 
 export default {
   metaInfo: {
     title: 'Verbose',
   },
   components: {
-    Node,
     Avatar,
+    VirtualList,
   },
   data() {
     return {
@@ -128,6 +135,7 @@ export default {
     };
   },
   computed: {
+    Node() { return Node; },
     verboseData() { return this.$store.getters.verbose; },
     filteredNodes() {
       const { data } = this.verboseData;
@@ -142,19 +150,12 @@ export default {
   created() {
     if (this.verboseData?.sessionId) return;
 
-    let sessionId;
-
-    if (this.$route.params.id) {
-      sessionId = this.$route.params.id;
-    } else if (this.$route.query.id) {
-      sessionId = this.$route.query.id;
-    } else if (this.$route.hash) {
-      // eslint-disable-next-line prefer-destructuring
-      sessionId = this.$route.hash.split('#')[1];
-    }
-    if (sessionId) {
-      this.$store.dispatch('getVerboseData', sessionId);
-    }
+    updateSession(this.$route, 'getVerboseData');
+  },
+  watch: {
+    $route(route) {
+      updateSession(route, 'getVerboseData');
+    },
   },
 };
 </script>
@@ -217,14 +218,14 @@ export default {
       flex-direction: column;
       padding: 1rem 1rem 1rem 0;
 
-      ul.data {
+      .data {
         flex: 1;
         overflow: auto;
         list-style: none;
         margin: 0;
         padding: 0 1rem 0 0;
 
-        > li {
+        [role="listitem"] {
           background: $grey;
           border-radius: 2px;
         }

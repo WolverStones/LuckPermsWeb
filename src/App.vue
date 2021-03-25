@@ -1,21 +1,25 @@
 <template>
   <div id="app">
-    <div id="nav">
+    <nav id="nav">
       <div>
         <router-link to="/" class="logo">
-          <img alt="LuckPerms logo" src="@/assets/logo.png">
+          <img alt="LuckPerms logo" src="@/assets/logo.svg">
           <span>LuckPerms</span>
         </router-link>
-        <div v-if="!config.selfHosted" class="nav-message">
-          <a href="https://bisecthosting.com/luck" target="_blank">
-            <img src="@/assets/bisect.svg" alt="Bisect Hosting">
-            <span>
+        <transition name="fade">
+          <div v-if="!config.selfHosted && !isSponsorRoute" class="nav-message">
+            <router-link to="/sponsor">
+              <hr />
+              <img src="@/assets/bisect.svg" alt="Bisect Hosting">
+              <span>
               Proudly sponsored by
               <strong>BisectHosting</strong><br/>
-              Use code <code>luck</code> for 25% off!
+              <span class="new">NEW:</span>
+              Special offer for LuckPerms users!
             </span>
-          </a>
-        </div>
+            </router-link>
+          </div>
+        </transition>
       </div>
 
       <ul :class="{ active: menu, 'top-level': true }">
@@ -32,7 +36,7 @@
               Download
             </router-link>
           </li>
-          <li>
+          <li class="overlap">
             <router-link to="/wiki">
               <font-awesome icon="book" fixed-width />
               Wiki
@@ -66,7 +70,7 @@
           </ul>
         </li>
         <template v-if="!config.selfHosted">
-          <li class="external">
+          <li class="external overlap">
             <a href="https://github.com/lucko/LuckPerms" target="_blank" class="github">
               <font-awesome :icon="['fab', 'github']" fixed-width />
               <span>Github</span>
@@ -78,12 +82,6 @@
               <span>Discord</span>
             </a>
           </li>
-          <li class="external">
-            <a href="https://patreon.com/luckdev" target="_blank" class="patreon">
-              <font-awesome :icon="['fab', 'patreon']" fixed-width />
-              <span>Patreon</span>
-            </a>
-          </li>
         </template>
       </ul>
 
@@ -93,7 +91,16 @@
       >
         <font-awesome icon="bars" />
       </button>
-    </div>
+
+      <transition name="fade">
+        <div
+          id="nav-focus"
+          class="overlay-focus"
+          v-if="menu"
+          @click="menu = !menu"
+        ></div>
+      </transition>
+    </nav>
 
     <transition name="fade" mode="out-in">
       <router-view/>
@@ -104,14 +111,14 @@
         <ul>
           <li>
             <font-awesome icon="code-branch" fixed-width />
-            <a href="https://github.com/lucko" target="_blank">lucko</a>
-            /
             <a href="https://github.com/lucko/LuckPermsWeb" target="_blank">LuckPermsWeb</a>
+            @
+            <a :href="'https://github.com/lucko/LuckPermsWeb/commit/' + commitHash" target="_blank">{{ commitHash }}</a>
           </li>
           <li>
-            <a href="https://github.com/lucko/LuckPermsWeb/blob/master/LICENSE.txt" target="_blank">
-            Copyright © 2017-{{new Date().getFullYear().toString()}} LuckPerms contributors
-            </a>
+            <router-link to="/wiki/Credits">
+              Copyright © 2017-{{ new Date().getFullYear().toString() }} LuckPerms contributors
+            </router-link>
           </li>
         </ul>
       </div>
@@ -130,7 +137,7 @@ export default {
       },
       {
         property: 'og:description',
-        content: 'Resources, useful links and the latest downloads for LuckPerms',
+        content: 'Website & online apps for the LuckPerms plugin.',
       },
       {
         property: 'og:type',
@@ -138,15 +145,15 @@ export default {
       },
       {
         property: 'og:image',
-        content: 'https://luckperms.github.io/assets/logo/720px.png',
+        content: 'https://luckperms.net/logo.png',
       },
       {
         property: 'og:url',
-        content: 'https://luckperms.net',
+        content: 'https://luckperms.net/',
       },
       {
         property: 'og:site_name',
-        content: 'LuckPerms',
+        content: 'LuckPerms - A permissions plugin for Minecraft servers.',
       },
     ],
   },
@@ -158,6 +165,9 @@ export default {
   },
 
   computed: {
+    commitHash() {
+      return process.env.VUE_APP_GIT_HASH;
+    },
     version() {
       return this.$store.getters.version;
     },
@@ -174,10 +184,19 @@ export default {
         'tree-home',
       ].includes(this.$route.name);
     },
+    isSponsorRoute() {
+      return this.$route.name === 'sponsor';
+    },
   },
 
   created() {
     this.$store.dispatch('getAppData');
+  },
+
+  watch: {
+    $route() {
+      this.menu = false;
+    },
   },
 };
 </script>
@@ -287,7 +306,7 @@ body {
 
 #nav {
   padding: .5rem;
-  z-index: 50;
+  z-index: 100;
   box-shadow: 0 0 0.5rem rgba(0,0,0,.25);
   display: flex;
   justify-content: space-between;
@@ -305,7 +324,7 @@ body {
   .logo {
     height: 3rem;
     padding: .5rem;
-    font-size: 1.5rem;
+    font-size: 1.7rem;
     display: flex;
     align-items: center;
     color: #FFF;
@@ -324,13 +343,22 @@ body {
     }
   }
 
+  hr {
+    height: 2rem;
+    margin: 0 1rem 0 .5rem;
+    border-color: $brand-color;
+  }
+
   .nav-message {
-    margin-left: 1rem;
-    opacity: .5;
     max-width: 25rem;
     font-size: .9rem;
     line-height: 1.2;
-    transition: opacity .2s;
+    color: rgba(255,255,255,.66);
+    transition: all .2s;
+
+    .new {
+      color: $brand-color;
+    }
 
     img {
       height: 2rem;
@@ -338,20 +366,15 @@ body {
     }
 
     a {
-      padding: .25rem;
       color: inherit;
       text-decoration: none;
       display: flex;
       align-items: center;
-
-      code {
-        border: 1px solid rgba(255,255,255,.2);
-        padding: 0 .25em;
-      }
+      font-size: .8rem;
     }
 
     &:hover {
-      opacity: .75;
+      color: rgba(255,255,255,.8);
     }
   }
 
@@ -369,6 +392,7 @@ body {
     width: 100%;
     max-width: 20rem;
     bottom: 0;
+    z-index: 100;
 
     @include breakpoint($sm) {
       flex-direction: row;
@@ -396,6 +420,10 @@ body {
       position: relative;
       flex-direction: column;
 
+      &.overlap {
+        z-index: 110;
+      }
+
       @include breakpoint($sm) {
         flex-direction: row;
       }
@@ -409,13 +437,13 @@ body {
         display: flex;
         align-items: center;
         font-weight: bold;
-        padding: .5rem 1rem;
+        padding: .5em 1em;
         text-decoration: none;
         text-transform: uppercase;
         transition: all .2s;
         cursor: pointer;
         width: 100%;
-        font-size: 1.25rem;
+        font-size: 1.5rem;
 
         @include breakpoint($sm) {
           font-size: 1rem;
@@ -508,10 +536,6 @@ body {
 
           &.discord {
             color: #7289DA;
-          }
-
-          &.patreon {
-            color: #f96854;
           }
 
           span {

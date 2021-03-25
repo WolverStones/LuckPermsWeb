@@ -2,11 +2,13 @@
   <main class="editor">
     <div v-if="!sessionId" class="tool-intro">
       <div>
-        <img alt="LuckPerms logo" src="../assets/logo.png">
+        <img alt="LuckPerms logo" src="../assets/logo.svg">
         <div class="text">
           <h1>LuckPerms</h1>
           <p>Web Permissions Editor</p>
-          <a href="/editor/demo"><button class="button demo-button">View Demo</button></a>
+          <router-link to="/editor/demo">
+            <button class="button demo-button">View Demo</button>
+          </router-link>
           <p>To start a new editor session, use one of the following commands:</p>
           <ul>
             <li><code>/lp editor</code></li>
@@ -18,10 +20,9 @@
     </div>
 
     <div v-else class="editor-container">
-      <transition name="fade" mode="out-in">
         <div v-if="!sessions.length" class="tool-intro" key="loading">
           <div>
-            <img alt="LuckPerms logo" src="../assets/logo.png">
+            <img alt="LuckPerms logo" src="../assets/logo.svg">
             <div class="text">
               <h1>LuckPerms</h1>
               <p>Web Permissions Editor</p>
@@ -48,7 +49,15 @@
             :sessions="sessions"
             :current-session="currentSession"
             :class="{ active: menu }"
+            @clear-query="clearQuery"
           />
+
+            <div
+              id="editor-menu-focus"
+              class="overlay-focus"
+              v-if="menu"
+              @click="menu = !menu"
+            ></div>
 
           <button
             id="editor-menu-toggle"
@@ -60,9 +69,22 @@
           <div class="editor-main">
             <nav>
               <div class="logo">
-                Web Permissions Editor
+                <h1>Web Permissions Editor</h1>
               </div>
               <div class="buttons">
+                <div class="search">
+                  <input
+                    v-if="search.toggle"
+                    type="text"
+                    v-model="search.query"
+                    placeholder="Search"
+                    ref="searchInput"
+                  />
+                  <button @click="toggleSearch">
+                    <font-awesome v-if="search.query" icon="times" fixed-width />
+                    <font-awesome v-else icon="search" fixed-width />
+                  </button>
+                </div>
 <!--                <button>-->
 <!--                  <font-awesome icon="undo" />-->
 <!--                </button>-->
@@ -82,17 +104,15 @@
               </div>
             </nav>
 
-            <transition name="fade" mode="in-out">
-              <div class="editor-no-session" v-if="!currentSession">
+
+              <div class="editor-no-session" v-if="!currentSession && !search.debouncedQuery">
                 <font-awesome icon="arrow-left" />
                 <h1>Choose a group or user from the side bar</h1>
               </div>
-            </transition>
 
-            <transition name="fade" mode="out-in">
               <div
                 class="editor-session"
-                v-if="currentSession"
+                v-if="currentSession && !search.debouncedQuery"
                 :key="`session_${currentSession.id}`"
               >
                 <div class="session-container">
@@ -100,14 +120,17 @@
                   <Meta :session="currentSession" :sessionData="currentSessionData" />
                   <NodeList :nodes="currentNodes" />
                 </div>
-                <AddNode />
               </div>
-            </transition>
 
+              <search-nodes
+                v-if="search.debouncedQuery"
+                :query="search.debouncedQuery"
+                @clear-query="clearQuery"
+              />
+
+              <AddNode v-if="(currentSession && !search.debouncedQuery) || selectedNodes.length" />
           </div>
         </div>
-      </transition>
-
     </div>
 
     <transition name="fade">
@@ -118,35 +141,40 @@
 </template>
 
 <script>
+import debounce from 'lodash.debounce';
 import EditorMenu from '@/components/Editor/EditorMenu.vue';
 import Header from '@/components/Editor/Header.vue';
 import Meta from '@/components/Editor/Meta.vue';
 import NodeList from '@/components/Editor/NodeList.vue';
 import AddNode from '@/components/Editor/AddNode.vue';
+import SearchNodes from '@/components/Editor/SearchNodes.vue';
 import Modal from '@/components/Editor/Modal.vue';
+import updateSession from '@/util/session';
 
 export default {
   name: 'Editor',
-
   metaInfo: {
     title: 'Editor',
   },
-
   components: {
     EditorMenu,
     Header,
     Meta,
     NodeList,
     AddNode,
+    SearchNodes,
     Modal,
   },
-
   data() {
     return {
       menu: false,
+      search: {
+        toggle: false,
+        query: '',
+        debouncedQuery: '',
+      },
     };
   },
-
   computed: {
     sessionId() {
       return this.$store.getters.editorSessionId;
@@ -193,33 +221,49 @@ export default {
     saveStatus() {
       return this.$store.getters.saveStatus;
     },
+    version() {
+      return this.$store.getters.version;
+    },
+    userVersion() {
+      return this.$store.getters.metaData.pluginVersion;
+    },
+    selectedNodes() {
+      return this.$store.getters.selectedNodeIds;
+    },
   },
-
   created() {
-    if (this.$route.hash && this.$route.hash.length === 11) {
-      window.location = `https://legacy.luckperms.net/editor/${this.$route.hash}`;
-    }
-
+    const { $route } = this;
     if (this.sessions?.length) return;
-
-    let sessionId;
-
-    if (this.$route.params.id) {
-      sessionId = this.$route.params.id;
-    } else if (this.$route.query.id) {
-      sessionId = this.$route.query.id;
-    } else if (this.$route.hash) {
-      // eslint-disable-next-line prefer-destructuring
-      sessionId = this.$route.hash.split('#')[1];
-    }
-    if (sessionId) {
-      this.$store.dispatch('getEditorData', sessionId);
-    }
+    updateSession($route, 'getEditorData');
   },
-
+  watch: {
+    $route(route) {
+      updateSession(route, 'getEditorData');
+    },
+    // eslint-disable-next-line func-names
+    'search.query': debounce(function (value) {
+      this.search.debouncedQuery = String(value).toLowerCase();
+    }, 200),
+  },
   methods: {
     saveData() {
       this.$store.dispatch('saveData');
+    },
+    async toggleSearch() {
+      const { search } = this;
+      if (search.toggle === true) {
+        search.query = '';
+        search.toggle = false;
+      } else {
+        search.toggle = true;
+        await this.$nextTick();
+        this.$refs.searchInput.focus();
+      }
+    },
+    clearQuery() {
+      this.search.query = '';
+      this.search.debouncedQuery = '';
+      this.search.toggle = false;
     },
   },
 };
@@ -276,7 +320,7 @@ main.editor {
           padding: 1rem;
           font-size: 1.5rem;
           position: relative;
-          z-index: 2;
+          z-index: 52;
 
           .logo {
             display: flex;
@@ -287,9 +331,15 @@ main.editor {
             @include breakpoint($sm) {
               margin-left: 0;
             }
+
+            h1 {
+              font-size: 1.5rem;
+            }
           }
 
           .buttons {
+            display: flex;
+
             button {
               background: $brand-color;
               color: $navy;
@@ -305,6 +355,26 @@ main.editor {
                 opacity: .8;
               }
             }
+
+            .search {
+              display: flex;
+              position: relative;
+
+              button {
+                background: white;
+                margin: 0;
+              }
+            }
+
+            input {
+              padding: .5rem;
+              width: 20rem;
+              background: white;
+              border: 0;
+              background: rgba(255,255,255,.85);
+              border-right: 1px solid rgba(0,0,0,.25);
+              font-family: "Source Code Pro", monospace;
+            }
           }
         }
 
@@ -317,7 +387,10 @@ main.editor {
           flex-direction: column;
 
           .session-container {
-            overflow: auto;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            flex: 1;
           }
         }
 

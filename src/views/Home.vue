@@ -3,7 +3,7 @@
     <section class="hero">
       <div class="container">
         <div :class="{'logo': true, 'selfhosted': config.selfHosted }">
-          <img alt="LuckPerms logo" src="../assets/logo.png">
+          <img alt="LuckPerms logo" src="../assets/logo.svg">
           <div>
             <h1>LuckPerms</h1>
             <p>A permissions plugin for Minecraft servers.</p>
@@ -17,12 +17,12 @@
             Download
           </span>
             <small>
-              Version: {{ version }}
+              v{{ version }}
               <font-awesome icon="asterisk" :spin="true" v-if="!version" />
             </small>
           </router-link>
           <small>
-            Supports Bukkit/Spigot/Paper, BungeeCord, Sponge, Nukkit and Velocity servers
+            Supports Bukkit/Spigot/Paper, BungeeCord, Sponge, Fabric, Nukkit and Velocity servers
           </small>
         </div>
       </div>
@@ -93,6 +93,14 @@
             <small>Join {{ discordUserCount }} others to discuss the project and ask/answer
               questions</small>
           </a>
+          <router-link to="/sponsor" class="resource">
+            <span>
+              <font-awesome icon="server" />
+              Hosting Partner
+            </span>
+            <small>Find out how you can get a great deal on your server hosting and support
+              us at the same time</small>
+          </router-link>
           <a href="https://patreon.com/luckdev" class="resource">
             <span>
               <font-awesome :icon="['fab', 'patreon']" />
@@ -116,7 +124,7 @@
               <font-awesome icon="comment-alt" />
               Verbose Viewer
             </router-link>
-            <router-link to="/tree" alt="Tree Viewer">
+            <router-link to="/treeview" alt="Tree Viewer">
               <font-awesome icon="sitemap" />
               Tree Viewer
             </router-link>
@@ -292,7 +300,6 @@ export default {
       background: $grey;
       color: $brand-color;
       font: inherit;
-      font-size: 1.25rem;
       font-weight: bold;
       flex: 1;
       margin: 1rem;
@@ -302,13 +309,22 @@ export default {
       align-items: center;
       border-radius: 2px;
       text-decoration: none;
+      text-align: center;
+
+      @include breakpoint($sm) {
+        font-size: 1.25rem;
+      }
 
       svg {
-        font-size: 4rem;
+        font-size: 3rem;
         display: block;
         opacity: .5;
         color: #FFF;
         margin-bottom: 1rem;
+
+        @include breakpoint($sm) {
+          font-size: 4rem;
+        }
       }
 
       &:first-child {
